@@ -1,0 +1,14 @@
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    "B008",   # FastAPI's Depends() in argument defaults is the documented pattern
+    "UP042",  # str+Enum is deliberate: StrEnum changes str() output, which
+              # SQLAlchemy's Enum column and Pydantic serialisation depend on
+]
+
+[lint.per-file-ignores]
+# Seed data is a wide literal table; wrapping it hurts readability more than it helps.
+"scripts/seed.py" = ["E501"]

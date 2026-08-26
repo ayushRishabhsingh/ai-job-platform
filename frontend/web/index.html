@@ -1,0 +1,1141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coverage — job matching</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS
+   ============================================================ */
+:root{
+  --ink:#14172B;
+  --ink-2:#3A4055;
+  --slate:#6B7288;
+  --paper:#EEF0F5;
+  --card:#FFFFFF;
+  --line:#D6DAE4;
+  --line-soft:#E6E9F0;
+  --accent:#4338E8;
+  --accent-ink:#2A22B8;
+  --accent-wash:#EEEDFE;
+  --have:#1B9C72;
+  --have-wash:#E4F5EE;
+  --warn:#B4541F;
+  --warn-wash:#FBEEE6;
+  --bad:#C3403C;
+
+  --f-display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
+  --f-body:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+
+  --r:7px;
+  --rail:224px;
+  --shadow:0 1px 2px rgba(20,23,43,.05), 0 8px 24px -16px rgba(20,23,43,.18);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--f-body);
+  font-size:15px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+a{color:var(--accent);text-decoration:none}
+[hidden]{display:none !important}
+
+/* ---- utility type ---- */
+.eyebrow{
+  font-family:var(--f-mono);
+  font-size:10.5px;
+  font-weight:500;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--slate);
+}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--slate)}
+
+/* ============================================================
+   SIGNATURE: THE COVERAGE STRIP
+   one cell per required skill. solid = held, hollow = gap.
+   ============================================================ */
+.strip{display:flex;gap:3px;align-items:stretch;width:100%}
+.cell{
+  flex:1 1 0;
+  min-width:6px;
+  height:26px;
+  border-radius:3px;
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  transform-origin:bottom center;
+}
+.cell-label{
+  font-family:var(--f-mono);
+  font-size:9.5px;
+  font-weight:500;
+  letter-spacing:.02em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  padding:0 5px;
+  pointer-events:none;
+}
+.cell.have{background:var(--have);}
+.cell.have .cell-label{color:#fff}
+.cell.gap{
+  background:repeating-linear-gradient(-45deg,#fff 0 3px,#F4F5F9 3px 6px);
+  border:1px dashed var(--line);
+}
+.cell.gap .cell-label{color:var(--slate)}
+.strip.animate .cell{animation:cell-in .34s cubic-bezier(.2,.9,.3,1) both}
+@keyframes cell-in{from{transform:scaleY(.15);opacity:0}to{transform:scaleY(1);opacity:1}}
+
+.coverage-meta{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:12px;margin-top:7px;
+}
+.coverage-count{font-family:var(--f-mono);font-size:11.5px;color:var(--slate);letter-spacing:.02em}
+.coverage-count b{color:var(--ink);font-weight:600}
+.score{
+  font-family:var(--f-mono);font-size:13px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+}
+.score.s-strong{color:var(--have)}
+.score.s-good{color:var(--accent)}
+.score.s-part{color:var(--warn)}
+.score.s-weak{color:var(--slate)}
+
+/* ============================================================
+   AUTH SCREEN
+   ============================================================ */
+#authScreen{min-height:100vh;display:grid;grid-template-columns:1.15fr .85fr}
+.auth-brand{
+  background:var(--ink);
+  color:#fff;
+  padding:48px 52px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  position:relative;overflow:hidden;
+}
+.auth-brand::after{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(900px 400px at 12% 110%, rgba(67,56,232,.42), transparent 70%);
+  pointer-events:none;
+}
+.brand-mark{display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+.brand-mark .dot{width:9px;height:9px;border-radius:2px;background:var(--have)}
+.brand-mark .name{font-family:var(--f-mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.72)}
+.auth-thesis{position:relative;z-index:1;max-width:30ch}
+.auth-thesis h1{
+  font-family:var(--f-display);
+  font-weight:800;
+  font-size:clamp(34px,4.6vw,60px);
+  line-height:.96;
+  letter-spacing:-.03em;
+  margin:0 0 18px;
+}
+.auth-thesis p{color:rgba(255,255,255,.66);font-size:15.5px;margin:0;max-width:34ch}
+
+/* live demo strip on the auth panel */
+.demo{position:relative;z-index:1;margin:34px 0}
+.demo .eyebrow{color:rgba(255,255,255,.45);margin-bottom:10px;display:block}
+.demo-role{font-family:var(--f-mono);font-size:12px;color:rgba(255,255,255,.85);margin-bottom:9px;letter-spacing:.02em}
+.demo .cell.gap{background:repeating-linear-gradient(-45deg,rgba(255,255,255,.06) 0 3px,rgba(255,255,255,.02) 3px 6px);border-color:rgba(255,255,255,.22)}
+.demo .cell.gap .cell-label{color:rgba(255,255,255,.5)}
+.demo .coverage-count{color:rgba(255,255,255,.55)}
+.demo .coverage-count b{color:#fff}
+
+.auth-panel{background:var(--card);padding:48px 52px;display:flex;flex-direction:column;justify-content:center}
+.auth-inner{width:100%;max-width:352px;margin:0 auto}
+.tabs{display:flex;gap:2px;background:var(--paper);padding:3px;border-radius:var(--r);margin-bottom:26px}
+.tabs button{
+  flex:1;padding:8px 10px;border-radius:5px;font-size:13.5px;font-weight:500;color:var(--slate);
+}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(20,23,43,.08)}
+.field{margin-bottom:15px}
+.field label{display:block;margin-bottom:6px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
+.input,.select,textarea.input{
+  width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;
+  background:var(--card);font-size:14px;transition:border-color .12s,box-shadow .12s;
+}
+.input:focus,.select:focus,textarea.input:focus{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash);
+}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:9px 15px;border-radius:6px;font-size:13.5px;font-weight:500;
+  border:1px solid transparent;transition:background .12s,border-color .12s,color .12s;
+}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-ink)}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.btn-ghost{border-color:var(--line);color:var(--ink-2);background:var(--card)}
+.btn-ghost:hover{border-color:var(--slate);color:var(--ink)}
+.btn-quiet{color:var(--slate);padding:6px 8px}
+.btn-quiet:hover{color:var(--bad)}
+.btn-block{width:100%}
+.btn:focus-visible,.tabs button:focus-visible,.rail a:focus-visible,.seg button:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;
+}
+.hint{font-family:var(--f-mono);font-size:11.5px;color:var(--slate);margin-top:16px;line-height:1.6}
+.hint code{background:var(--paper);padding:1px 5px;border-radius:3px;color:var(--ink-2)}
+.form-note{
+  margin-top:14px;padding:9px 11px;border-radius:6px;font-size:12.5px;
+  border:1px solid var(--line);background:var(--paper);
+}
+.form-note.err{background:#FDEDED;border-color:#F3C9C7;color:#8E2C29}
+.form-note.ok{background:var(--have-wash);border-color:#BFE6D7;color:#0F6B4E}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+#app{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
+.rail{
+  background:var(--ink);color:#fff;padding:20px 14px;
+  display:flex;flex-direction:column;gap:26px;position:sticky;top:0;height:100vh;
+}
+.rail .brand-mark{padding:0 8px}
+.rail nav{display:flex;flex-direction:column;gap:2px}
+.rail a{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;
+  color:rgba(255,255,255,.62);font-size:14px;font-weight:500;transition:background .12s,color .12s;
+}
+.rail a:hover{background:rgba(255,255,255,.06);color:#fff}
+.rail a[aria-current="page"]{background:rgba(255,255,255,.1);color:#fff}
+.rail a .ic{width:16px;text-align:center;font-size:13px;opacity:.9}
+.rail-foot{margin-top:auto;padding:0 8px;font-family:var(--f-mono);font-size:10.5px;color:rgba(255,255,255,.38);line-height:1.7;word-break:break-all}
+.rail-foot .who{color:rgba(255,255,255,.72);margin-bottom:8px;word-break:break-all}
+.rail-foot button{color:rgba(255,255,255,.55);font-size:11px;font-family:var(--f-mono);letter-spacing:.08em;text-transform:uppercase;padding:0;margin-top:8px}
+.rail-foot button:hover{color:#fff}
+
+main{padding:30px 34px 64px;max-width:1120px}
+.page-head{margin-bottom:24px}
+.page-head h2{
+  font-family:var(--f-display);font-weight:800;font-size:30px;letter-spacing:-.025em;
+  margin:6px 0 5px;line-height:1.08;
+}
+.page-head p{margin:0;color:var(--slate);font-size:14px;max-width:62ch}
+
+/* ---- controls bar ---- */
+.controls{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;margin-bottom:20px;display:flex;flex-wrap:wrap;gap:18px;align-items:flex-end;
+}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl > .eyebrow{margin-bottom:1px}
+.seg{display:flex;background:var(--paper);padding:2px;border-radius:6px;gap:2px}
+.seg button{
+  padding:6px 11px;border-radius:4px;font-family:var(--f-mono);font-size:11.5px;
+  letter-spacing:.04em;color:var(--slate);text-transform:lowercase;
+}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--accent);box-shadow:0 1px 2px rgba(20,23,43,.08);font-weight:600}
+input[type=range]{width:132px;accent-color:var(--accent)}
+.input-sm{padding:6px 9px;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+.input-sm:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-wash)}
+
+/* ---- job / match cards ---- */
+.stack{display:flex;flex-direction:column;gap:12px}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:17px 18px;box-shadow:var(--shadow);
+}
+.card-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+.card-title{font-family:var(--f-display);font-weight:600;font-size:17.5px;letter-spacing:-.015em;line-height:1.2;margin:0}
+.card-sub{font-family:var(--f-mono);font-size:11.5px;color:var(--slate);margin-top:5px;letter-spacing:.01em}
+.card-sub .sep{opacity:.4;margin:0 6px}
+.rank{
+  font-family:var(--f-mono);font-size:11px;color:var(--slate);
+  border:1px solid var(--line);border-radius:4px;padding:2px 6px;flex-shrink:0;
+}
+.card-acts{display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:12px}
+.chip{
+  font-family:var(--f-mono);font-size:11px;padding:3px 7px;border-radius:4px;
+  border:1px solid var(--line-soft);background:var(--paper);color:var(--ink-2);letter-spacing:.01em;
+}
+.chip.have{background:var(--have-wash);border-color:#C6E8DA;color:#0F6B4E}
+.chip.gap{background:var(--warn-wash);border-color:#F0D9C9;color:var(--warn)}
+
+/* inline skill-gap detail */
+.detail{
+  margin-top:14px;padding:14px 15px;background:var(--paper);
+  border:1px solid var(--line-soft);border-radius:6px;
+}
+.detail h4{margin:0 0 9px;font-size:12.5px;font-weight:600}
+.detail ul{margin:0;padding-left:17px;font-size:13.5px;color:var(--ink-2)}
+.detail li{margin-bottom:5px}
+.detail li:last-child{margin-bottom:0}
+
+/* ---- stats row ---- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px;margin-bottom:22px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 13px}
+.stat .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--slate)}
+.stat .v{font-family:var(--f-mono);font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:5px;letter-spacing:-.02em}
+.stat.lead{background:var(--ink);border-color:var(--ink)}
+.stat.lead .k{color:rgba(255,255,255,.5)}
+.stat.lead .v{color:#fff}
+
+/* ---- pipeline board ---- */
+.board{display:grid;grid-template-columns:repeat(6,minmax(184px,1fr));gap:10px;overflow-x:auto;padding-bottom:8px}
+.col{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:11px;min-height:150px}
+.col-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:9px;border-bottom:1px solid var(--line-soft)}
+.col-head .n{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);font-weight:500}
+.col-head .c{font-family:var(--f-mono);font-size:11px;color:var(--slate)}
+.col.is-offer .col-head .n{color:var(--have)}
+.col.is-rejected .col-head .n{color:var(--slate)}
+.tile{border:1px solid var(--line-soft);border-radius:6px;padding:10px;margin-bottom:8px;background:var(--card)}
+.tile:last-child{margin-bottom:0}
+.tile-t{font-size:13.5px;font-weight:500;line-height:1.25}
+.tile-c{font-family:var(--f-mono);font-size:10.5px;color:var(--slate);margin-top:3px}
+.tile-foot{display:flex;align-items:center;gap:6px;margin-top:9px}
+.tile-foot .select{flex:1;padding:4px 6px;font-size:11.5px;font-family:var(--f-mono);border:1px solid var(--line);border-radius:4px;background:var(--card)}
+.tile-score{font-family:var(--f-mono);font-size:10.5px;color:var(--slate);margin-top:6px}
+
+/* ---- profile ---- */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel h3{font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:-.01em;margin:0 0 3px}
+.panel .sub{font-size:13px;color:var(--slate);margin:0 0 15px}
+.drop{
+  border:1.5px dashed var(--line);border-radius:var(--r);padding:26px 18px;text-align:center;
+  transition:border-color .15s,background .15s;cursor:pointer;
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-wash)}
+.drop .big{font-size:14px;font-weight:500;margin-bottom:4px}
+.drop .small{font-family:var(--f-mono);font-size:11px;color:var(--slate)}
+.filelist{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+.filerow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line-soft);border-radius:6px}
+.filerow .fn{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filerow .fm{font-family:var(--f-mono);font-size:10.5px;color:var(--slate)}
+.badge-active{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--have-wash);color:#0F6B4E;padding:2px 6px;border-radius:3px;border:1px solid #C6E8DA}
+
+/* ---- states ---- */
+.empty{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:44px 24px;text-align:center;
+}
+.empty .t{font-family:var(--f-display);font-weight:600;font-size:17px;margin-bottom:6px;letter-spacing:-.01em}
+.empty .d{color:var(--slate);font-size:13.5px;max-width:46ch;margin:0 auto 16px}
+.skeleton{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:17px 18px}
+.sk-line{height:11px;border-radius:3px;background:linear-gradient(90deg,var(--line-soft) 25%,#F3F5F9 50%,var(--line-soft) 75%);background-size:200% 100%;animation:sk 1.3s infinite;margin-bottom:9px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ---- toast ---- */
+#toasts{position:fixed;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;z-index:80;max-width:340px}
+.toast{
+  background:var(--ink);color:#fff;padding:11px 14px;border-radius:6px;font-size:13px;
+  box-shadow:0 12px 32px -12px rgba(20,23,43,.5);animation:t-in .22s ease both;
+}
+.toast.err{background:var(--bad)}
+.toast.ok{background:var(--have)}
+@keyframes t-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---- offline banner ---- */
+#offline{
+  background:#FDEDED;border-bottom:1px solid #F3C9C7;color:#8E2C29;
+  padding:9px 16px;font-size:13px;text-align:center;
+}
+#offline code{font-family:var(--f-mono);background:rgba(0,0,0,.05);padding:1px 5px;border-radius:3px}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width:900px){
+  #authScreen{grid-template-columns:1fr}
+  .auth-brand{padding:32px 26px}
+  .auth-panel{padding:32px 26px}
+  .demo{margin:24px 0}
+  .grid-2{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  #app{grid-template-columns:1fr}
+  .rail{position:static;height:auto;flex-direction:row;align-items:center;gap:14px;padding:12px 14px;overflow-x:auto}
+  .rail .brand-mark{padding:0}
+  .rail nav{flex-direction:row;gap:4px}
+  .rail a{white-space:nowrap;padding:7px 9px}
+  .rail a .ic{display:none}
+  .rail-foot{margin-top:0;display:flex;align-items:center;gap:10px;padding:0}
+  .rail-foot .who{display:none}
+  .rail-foot .base{display:none}
+  .rail-foot button{margin-top:0}
+  main{padding:20px 16px 48px}
+  .controls{gap:14px}
+  .board{grid-template-columns:repeat(6,minmax(168px,1fr))}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+
+<div id="offline" hidden>
+  Can't reach the API. Start it with <code>uvicorn app.main:app --reload</code>, then <button class="btn btn-quiet" style="color:#8E2C29;text-decoration:underline" onclick="boot()">retry</button>
+</div>
+
+<!-- ============================================================
+     AUTH
+     ============================================================ -->
+<section id="authScreen">
+  <div class="auth-brand">
+    <div class="brand-mark"><span class="dot"></span><span class="name">Coverage</span></div>
+
+    <div>
+      <div class="auth-thesis">
+        <h1>Every job is a checklist. See which boxes you tick.</h1>
+        <p>Upload a resume. Each role becomes a strip of cells — one per required skill, filled if you have it.</p>
+      </div>
+
+      <div class="demo">
+        <span class="eyebrow">Live example</span>
+        <div class="demo-role" id="demoRole">Machine Learning Engineer · Vantage AI</div>
+        <div class="strip" id="demoStrip"></div>
+        <div class="coverage-meta">
+          <span class="coverage-count" id="demoCount"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="eyebrow" style="color:rgba(255,255,255,.34)">FastAPI · PostgreSQL · scikit-learn</div>
+  </div>
+
+  <div class="auth-panel">
+    <div class="auth-inner">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="login">Log in</button>
+        <button role="tab" aria-selected="false" data-tab="register">Create account</button>
+      </div>
+
+      <form id="loginForm">
+        <div class="field"><label for="li_email">Email</label>
+          <input class="input" id="li_email" type="email" autocomplete="username" value="demo@example.com" required></div>
+        <div class="field"><label for="li_pw">Password</label>
+          <input class="input" id="li_pw" type="password" autocomplete="current-password" value="demo12345" required></div>
+        <button class="btn btn-primary btn-block" type="submit" id="loginBtn">Log in</button>
+        <div class="hint">Seeded demo account is pre-filled. Run <code>python -m scripts.seed</code> first if it doesn't work.</div>
+        <div class="form-note err" id="loginErr" hidden></div>
+      </form>
+
+      <form id="registerForm" hidden>
+        <div class="field"><label for="rg_email">Email</label>
+          <input class="input" id="rg_email" type="email" autocomplete="username" required></div>
+        <div class="field"><label for="rg_name">Full name <span class="muted">— optional</span></label>
+          <input class="input" id="rg_name" type="text" autocomplete="name"></div>
+        <div class="field"><label for="rg_pw">Password</label>
+          <input class="input" id="rg_pw" type="password" autocomplete="new-password" minlength="8" required>
+          <div class="hint" style="margin-top:6px">8 characters or more.</div></div>
+        <button class="btn btn-primary btn-block" type="submit" id="regBtn">Create account</button>
+        <div class="form-note err" id="regErr" hidden></div>
+        <div class="form-note ok" id="regOk" hidden></div>
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     APP
+     ============================================================ -->
+<div id="app" hidden>
+  <aside class="rail">
+    <div class="brand-mark"><span class="dot"></span><span class="name">Coverage</span></div>
+    <nav>
+      <a href="#" data-view="matches"><span class="ic">◒</span>Matches</a>
+      <a href="#" data-view="jobs"><span class="ic">▤</span>All jobs</a>
+      <a href="#" data-view="tracker"><span class="ic">⇥</span>Tracker</a>
+      <a href="#" data-view="profile"><span class="ic">◍</span>Profile</a>
+    </nav>
+    <div class="rail-foot">
+      <div class="who" id="whoami"></div>
+      <div class="base" id="baseLabel"></div>
+      <button id="logoutBtn">Log out</button>
+    </div>
+  </aside>
+
+  <main>
+    <!-- MATCHES -->
+    <section data-page="matches">
+      <div class="page-head">
+        <span class="eyebrow">Ranked against your skills</span>
+        <h2>Matches</h2>
+        <p id="matchSummary">—</p>
+      </div>
+
+      <div class="controls">
+        <div class="ctl">
+          <span class="eyebrow">Strategy</span>
+          <div class="seg" id="stratSeg">
+            <button data-v="overlap" aria-pressed="true">overlap</button>
+            <button data-v="tfidf" aria-pressed="false">tfidf</button>
+            <button data-v="embedding" aria-pressed="false">embedding</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Minimum score <b class="mono" id="minScoreVal">0</b></span>
+          <input type="range" id="minScore" min="0" max="100" step="5" value="0">
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Location</span>
+          <input class="input-sm" id="recLocation" placeholder="any" style="width:130px">
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Max years</span>
+          <input class="input-sm mono" id="recMaxExp" type="number" min="0" max="40" placeholder="—" style="width:76px">
+        </div>
+        <button class="btn btn-primary" id="recRun">Refresh</button>
+      </div>
+
+      <div id="matchList" class="stack"></div>
+    </section>
+
+    <!-- JOBS -->
+    <section data-page="jobs" hidden>
+      <div class="page-head">
+        <span class="eyebrow">Everything in the database</span>
+        <h2>All jobs</h2>
+        <p id="jobSummary">—</p>
+      </div>
+
+      <div class="controls">
+        <div class="ctl">
+          <span class="eyebrow">Search</span>
+          <input class="input-sm" id="jq" placeholder="title, company, description" style="width:210px">
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Location</span>
+          <input class="input-sm" id="jloc" placeholder="any" style="width:130px">
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Skill</span>
+          <input class="input-sm" id="jskill" placeholder="e.g. Python" style="width:130px" list="skillOptions">
+          <datalist id="skillOptions"></datalist>
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Max years</span>
+          <input class="input-sm mono" id="jexp" type="number" min="0" max="40" placeholder="—" style="width:76px">
+        </div>
+        <div class="ctl">
+          <span class="eyebrow">Sort</span>
+          <select class="input-sm select" id="jsort" style="width:126px">
+            <option value="created_at">newest</option>
+            <option value="salary">salary</option>
+            <option value="experience">experience</option>
+            <option value="title">title</option>
+            <option value="company">company</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="jobRun">Search</button>
+      </div>
+
+      <div id="jobList" class="stack"></div>
+      <div id="jobPager" style="display:flex;gap:8px;justify-content:center;margin-top:18px"></div>
+    </section>
+
+    <!-- TRACKER -->
+    <section data-page="tracker" hidden>
+      <div class="page-head">
+        <span class="eyebrow">Saved → Applied → OA → Interview → Offer</span>
+        <h2>Tracker</h2>
+        <p>Change a card's stage to move it. The match score is the one captured when you saved it, so editing your resume later won't rewrite history.</p>
+      </div>
+      <div class="stats" id="trackStats"></div>
+      <div class="board" id="board"></div>
+    </section>
+
+    <!-- PROFILE -->
+    <section data-page="profile" hidden>
+      <div class="page-head">
+        <span class="eyebrow">What the matcher knows about you</span>
+        <h2>Profile</h2>
+      </div>
+
+      <div class="panel" style="margin-bottom:14px">
+        <h3>Skills in play</h3>
+        <p class="sub" id="skillCount">—</p>
+        <div class="chips" id="skillChips"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Resume</h3>
+          <p class="sub">PDF, DOCX or TXT — 5 MB max. Skills are extracted on upload.</p>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a resume file">
+            <div class="big">Drop a file, or click to choose</div>
+            <div class="small" id="dropState">nothing uploaded yet</div>
+          </div>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.md" hidden>
+          <div class="filelist" id="resumeList"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Preferences</h3>
+          <p class="sub">Used to filter and score your matches.</p>
+          <div class="field"><label for="pfName">Full name</label>
+            <input class="input" id="pfName"></div>
+          <div class="field"><label for="pfLoc">Preferred location</label>
+            <input class="input" id="pfLoc" placeholder="blank = anywhere"></div>
+          <div class="field"><label for="pfExp">Years of experience</label>
+            <input class="input mono" id="pfExp" type="number" min="0" max="60"></div>
+          <div class="field"><label for="pfSkills">Extra skills</label>
+            <textarea class="input" id="pfSkills" rows="3" placeholder="Python, FastAPI, Docker"></textarea>
+            <div class="hint" style="margin-top:6px">Comma separated. Added on top of what the resume parser found.</div></div>
+          <button class="btn btn-primary" id="prefSave">Save changes</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+/* ============================================================
+   API BASE
+   Served from FastAPI (/app) -> same origin, no CORS needed.
+   Opened as a bare file -> fall back to the default dev port.
+   ============================================================ */
+const API = (location.protocol === "file:" || !location.origin || location.origin === "null")
+  ? "http://127.0.0.1:8000"
+  : location.origin;
+
+/* Token store: prefers sessionStorage, falls back to memory if the
+   environment blocks storage, so the page never hard-fails. */
+const store = (() => {
+  let mem = null;
+  const KEY = "coverage.token";
+  return {
+    get(){ try { return sessionStorage.getItem(KEY) ?? mem; } catch { return mem; } },
+    set(v){ mem = v; try { sessionStorage.setItem(KEY, v); } catch {} },
+    clear(){ mem = null; try { sessionStorage.removeItem(KEY); } catch {} }
+  };
+})();
+
+const STAGES = ["Saved","Applied","OA","Interview","Rejected","Offer"];
+let profile = null;
+let jobPage = 1;
+
+/* ---------- tiny helpers ---------- */
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => (
+  {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function toast(msg, kind=""){
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  $("#toasts").append(el);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .3s"; }, 3200);
+  setTimeout(() => el.remove(), 3600);
+}
+
+function scoreClass(s){
+  return s >= 80 ? "s-strong" : s >= 60 ? "s-good" : s >= 40 ? "s-part" : "s-weak";
+}
+function money(n){
+  if (n == null) return null;
+  return n >= 100000 ? (n/100000).toFixed(n % 100000 ? 1 : 0) + "L" : n.toLocaleString("en-IN");
+}
+
+/* ---------- one call site for every request ---------- */
+async function api(method, path, { body, params, form } = {}){
+  const url = new URL(API + path);
+  if (params) for (const [k, v] of Object.entries(params)) {
+    if (v === "" || v == null) continue;
+    Array.isArray(v) ? v.forEach(x => url.searchParams.append(k, x))
+                     : url.searchParams.set(k, v);
+  }
+
+  const headers = {};
+  const token = store.get();
+  if (token) headers.Authorization = "Bearer " + token;
+  if (body) headers["Content-Type"] = "application/json";
+
+  let res;
+  try {
+    res = await fetch(url, { method, headers,
+      body: form ? form : (body ? JSON.stringify(body) : undefined) });
+  } catch {
+    $("#offline").hidden = false;
+    throw new Error("Can't reach the API");
+  }
+  $("#offline").hidden = true;
+
+  if (res.status === 401 && token) { logout(); throw new Error("Session expired — log in again"); }
+  if (res.status === 204) return null;
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    let msg = data?.detail || `Request failed (${res.status})`;
+    if (Array.isArray(data?.errors)) msg = data.errors.map(e => `${e.field}: ${e.message}`).join("; ");
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ============================================================
+   THE COVERAGE STRIP — the one thing this UI is built around
+   ============================================================ */
+function strip(matched, missing, { animate = true, labels = true } = {}){
+  const cells = [
+    ...matched.map(s => ({ s, have: true })),
+    ...missing.map(s => ({ s, have: false })),
+  ];
+  if (!cells.length) return `<div class="coverage-count muted">No skills listed for this role</div>`;
+
+  // Labels only fit when there is room for them.
+  const showLabels = labels && cells.length <= 7;
+  const inner = cells.map((c, i) => `
+    <div class="cell ${c.have ? "have" : "gap"}" style="animation-delay:${i * 34}ms" title="${esc(c.s)}${c.have ? "" : " — missing"}">
+      ${showLabels ? `<span class="cell-label">${esc(c.s)}</span>` : ""}
+    </div>`).join("");
+
+  return `<div class="strip ${animate ? "animate" : ""}">${inner}</div>`;
+}
+
+function coverageMeta(matched, total, score){
+  return `<div class="coverage-meta">
+    <span class="coverage-count"><b>${matched}</b> of ${total} skills</span>
+    <span class="score ${scoreClass(score)}">${score.toFixed(0)}% match</span>
+  </div>`;
+}
+
+/* ---------- auth-panel demo strip (real numbers from the seed data) ---------- */
+function paintDemo(){
+  const matched = ["Python","AWS","Docker"], missing = ["PyTorch","Kubernetes","MLOps"];
+  $("#demoStrip").innerHTML = strip(matched, missing, { labels: true }).replace('<div class="strip animate">','<div class="strip animate" style="height:26px">');
+  $("#demoCount").innerHTML = `<b>3</b> of 6 skills · missing PyTorch, Kubernetes, MLOps`;
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+$$(".tabs button").forEach(b => b.addEventListener("click", () => {
+  const tab = b.dataset.tab;
+  $$(".tabs button").forEach(x => x.setAttribute("aria-selected", String(x === b)));
+  $("#loginForm").hidden = tab !== "login";
+  $("#registerForm").hidden = tab !== "register";
+}));
+
+$("#loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = $("#loginBtn"), err = $("#loginErr");
+  btn.disabled = true; btn.textContent = "Logging in…"; err.hidden = true;
+  try {
+    const data = await api("POST", "/auth/login",
+      { body: { email: $("#li_email").value.trim(), password: $("#li_pw").value } });
+    store.set(data.access_token);
+    await enterApp();
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Log in";
+  }
+});
+
+$("#registerForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = $("#regBtn"), err = $("#regErr"), ok = $("#regOk");
+  btn.disabled = true; btn.textContent = "Creating…"; err.hidden = true; ok.hidden = true;
+  try {
+    await api("POST", "/auth/register", { body: {
+      email: $("#rg_email").value.trim(),
+      password: $("#rg_pw").value,
+      full_name: $("#rg_name").value.trim() || null,
+    }});
+    // Log straight in — making someone re-type what they just typed is rude.
+    const data = await api("POST", "/auth/login",
+      { body: { email: $("#rg_email").value.trim(), password: $("#rg_pw").value } });
+    store.set(data.access_token);
+    await enterApp();
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false; btn.textContent = "Create account";
+  }
+});
+
+function logout(){
+  store.clear(); profile = null;
+  $("#app").hidden = true;
+  $("#authScreen").hidden = false;
+}
+$("#logoutBtn").addEventListener("click", logout);
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+const LOADERS = { matches: loadMatches, jobs: loadJobs, tracker: loadTracker, profile: paintProfile };
+
+function go(view){
+  $$(".rail a").forEach(a =>
+    a.setAttribute("aria-current", a.dataset.view === view ? "page" : "false"));
+  $$("section[data-page]").forEach(s => s.hidden = s.dataset.page !== view);
+  LOADERS[view]?.();
+}
+$$(".rail a").forEach(a => a.addEventListener("click", e => { e.preventDefault(); go(a.dataset.view); }));
+
+async function enterApp(){
+  profile = await api("GET", "/users/me");
+  $("#authScreen").hidden = true;
+  $("#app").hidden = false;
+  $("#whoami").textContent = profile.full_name || profile.email;
+  $("#baseLabel").textContent = API.replace(/^https?:\/\//, "");
+  loadSkillOptions();
+  go("matches");
+}
+
+/* ============================================================
+   MATCHES
+   ============================================================ */
+$("#minScore").addEventListener("input", e => $("#minScoreVal").textContent = e.target.value);
+$$("#stratSeg button").forEach(b => b.addEventListener("click", () => {
+  $$("#stratSeg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  loadMatches();
+}));
+$("#recRun").addEventListener("click", loadMatches);
+$("#recLocation").addEventListener("keydown", e => { if (e.key === "Enter") loadMatches(); });
+
+function skeletons(n = 3){
+  return Array.from({ length: n }, () => `
+    <div class="skeleton">
+      <div class="sk-line" style="width:38%;height:15px"></div>
+      <div class="sk-line" style="width:22%"></div>
+      <div class="sk-line" style="width:100%;height:26px;margin-top:14px"></div>
+    </div>`).join("");
+}
+
+async function loadMatches(){
+  const list = $("#matchList");
+  list.innerHTML = skeletons(4);
+
+  const strategy = $("#stratSeg button[aria-pressed='true']").dataset.v;
+  try {
+    const data = await api("GET", "/recommendations", { params: {
+      strategy,
+      limit: 20,
+      min_score: $("#minScore").value,
+      location: $("#recLocation").value.trim(),
+      max_experience: $("#recMaxExp").value,
+    }});
+
+    $("#matchSummary").textContent =
+      `Scored ${data.total_jobs_scored} jobs against ${data.user_skills_used.length} of your skills using ${data.strategy}.`;
+
+    if (!data.recommendations.length){
+      list.innerHTML = `<div class="empty">
+        <div class="t">Nothing cleared the threshold</div>
+        <div class="d">Lower the minimum score, widen the location, or add more skills on your profile.</div>
+        <button class="btn btn-ghost" onclick="$('#minScore').value=0;$('#minScoreVal').textContent='0';loadMatches()">Reset the score filter</button>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = data.recommendations.map((r, i) => {
+      const total = r.matched_skills.length + r.missing_skills.length;
+      return `<article class="card">
+        <div class="card-top">
+          <div>
+            <h3 class="card-title">${esc(r.title)}</h3>
+            <div class="card-sub">${esc(r.company)}<span class="sep">/</span>${esc(r.location)}<span class="sep">/</span>${r.experience_required}+ yrs</div>
+          </div>
+          <span class="rank">#${i + 1}</span>
+        </div>
+        ${strip(r.matched_skills, r.missing_skills)}
+        ${coverageMeta(r.matched_skills.length, total, r.match_score)}
+        ${r.missing_skills.length ? `<div class="chips">${r.missing_skills.map(s => `<span class="chip gap">${esc(s)}</span>`).join("")}</div>` : ""}
+        <div class="card-acts">
+          <button class="btn btn-primary" onclick="track(${r.job_id}, this)">Save to tracker</button>
+          <button class="btn btn-ghost" onclick="showGap(${r.job_id}, this)">Why this score</button>
+        </div>
+        <div class="detail" hidden></div>
+      </article>`;
+    }).join("");
+
+  } catch (ex) {
+    if (/no skills on file/i.test(ex.message)){
+      $("#matchSummary").textContent = "Nothing to match against yet.";
+      list.innerHTML = `<div class="empty">
+        <div class="t">Add your skills first</div>
+        <div class="d">Upload a resume and the parser pulls the skills out of it — or type them in by hand. Either way, matching needs something to compare against.</div>
+        <button class="btn btn-primary" onclick="go('profile')">Go to profile</button>
+      </div>`;
+    } else {
+      list.innerHTML = `<div class="empty"><div class="t">Couldn't load matches</div><div class="d">${esc(ex.message)}</div>
+        <button class="btn btn-ghost" onclick="loadMatches()">Try again</button></div>`;
+    }
+  }
+}
+
+async function showGap(jobId, btn){
+  const box = btn.closest(".card").querySelector(".detail");
+  if (!box.hidden){ box.hidden = true; btn.textContent = "Why this score"; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="sk-line" style="width:60%"></div>`;
+  btn.textContent = "Hide";
+  try {
+    const g = await api("GET", `/jobs/${jobId}/skill-gap`);
+    box.innerHTML = `
+      <h4>${g.coverage} · ${g.match_score.toFixed(0)}% after the experience adjustment</h4>
+      <ul>${g.advice.map(a => `<li>${esc(a)}</li>`).join("")}</ul>`;
+  } catch (ex) {
+    box.innerHTML = `<span class="muted">${esc(ex.message)}</span>`;
+  }
+}
+
+async function track(jobId, btn){
+  const original = btn.textContent;
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    await api("POST", "/applications", { body: { job_id: jobId, status: "Saved" } });
+    btn.textContent = "Saved ✓";
+    toast("Added to your tracker", "ok");
+  } catch (ex) {
+    btn.disabled = false; btn.textContent = original;
+    toast(ex.message, "err");
+  }
+}
+
+/* ============================================================
+   ALL JOBS
+   ============================================================ */
+$("#jobRun").addEventListener("click", () => { jobPage = 1; loadJobs(); });
+["jq","jloc","jskill"].forEach(id =>
+  $("#" + id).addEventListener("keydown", e => { if (e.key === "Enter"){ jobPage = 1; loadJobs(); } }));
+$("#jsort").addEventListener("change", () => { jobPage = 1; loadJobs(); });
+
+async function loadSkillOptions(){
+  try {
+    const skills = await api("GET", "/skills", { params: { limit: 200 } });
+    $("#skillOptions").innerHTML = skills.map(s => `<option value="${esc(s)}">`).join("");
+  } catch {}
+}
+
+async function loadJobs(){
+  const list = $("#jobList");
+  list.innerHTML = skeletons(3);
+  try {
+    const data = await api("GET", "/jobs", { params: {
+      q: $("#jq").value.trim(),
+      location: $("#jloc").value.trim(),
+      skill: $("#jskill").value.trim(),
+      max_experience: $("#jexp").value,
+      sort_by: $("#jsort").value,
+      order: $("#jsort").value === "title" || $("#jsort").value === "company" ? "asc" : "desc",
+      page: jobPage,
+      limit: 10,
+    }});
+
+    $("#jobSummary").textContent = data.total
+      ? `${data.total} job${data.total === 1 ? "" : "s"} match these filters — page ${data.page} of ${data.pages}.`
+      : "No jobs match these filters.";
+
+    const mine = new Set((profile?.all_skills || []).map(s => s.toLowerCase()));
+
+    list.innerHTML = data.items.length ? data.items.map(j => {
+      const have = j.skills.filter(s => mine.has(s.toLowerCase()));
+      const gaps = j.skills.filter(s => !mine.has(s.toLowerCase()));
+      const pay = j.salary_min && j.salary_max ? `₹${money(j.salary_min)}–${money(j.salary_max)}` : null;
+      return `<article class="card">
+        <div class="card-top">
+          <div>
+            <h3 class="card-title">${esc(j.title)}</h3>
+            <div class="card-sub">${esc(j.company)}<span class="sep">/</span>${esc(j.location)}<span class="sep">/</span>${esc(j.employment_type)}<span class="sep">/</span>${j.experience_required}+ yrs${pay ? `<span class="sep">/</span>${pay}` : ""}</div>
+          </div>
+        </div>
+        ${j.description ? `<p style="margin:0 0 13px;font-size:13.5px;color:var(--ink-2)">${esc(j.description)}</p>` : ""}
+        ${strip(have, gaps, { animate: false })}
+        ${mine.size ? coverageMeta(have.length, j.skills.length, j.skills.length ? have.length / j.skills.length * 100 : 0)
+                    : `<div class="coverage-meta"><span class="coverage-count">${j.skills.length} skills required</span></div>`}
+        <div class="chips">${j.skills.map(s => `<span class="chip ${mine.has(s.toLowerCase()) ? "have" : ""}">${esc(s)}</span>`).join("")}</div>
+        <div class="card-acts">
+          <button class="btn btn-ghost" onclick="track(${j.id}, this)">Save to tracker</button>
+        </div>
+      </article>`;
+    }).join("") : `<div class="empty"><div class="t">No jobs found</div>
+      <div class="d">Try removing a filter. If the list is empty entirely, seed the database with <code class="mono">python -m scripts.seed</code>.</div></div>`;
+
+    $("#jobPager").innerHTML = data.pages > 1 ? `
+      <button class="btn btn-ghost" ${data.page <= 1 ? "disabled" : ""} onclick="jobPage--;loadJobs()">← Previous</button>
+      <span class="mono muted" style="align-self:center;font-size:12px">${data.page} / ${data.pages}</span>
+      <button class="btn btn-ghost" ${data.page >= data.pages ? "disabled" : ""} onclick="jobPage++;loadJobs()">Next →</button>` : "";
+
+  } catch (ex) {
+    list.innerHTML = `<div class="empty"><div class="t">Couldn't load jobs</div><div class="d">${esc(ex.message)}</div></div>`;
+  }
+}
+
+/* ============================================================
+   TRACKER
+   ============================================================ */
+async function loadTracker(){
+  const board = $("#board");
+  board.innerHTML = `<div class="skeleton" style="grid-column:1/-1"><div class="sk-line" style="width:30%"></div></div>`;
+  try {
+    const [stats, apps] = await Promise.all([
+      api("GET", "/applications/stats"),
+      api("GET", "/applications", { params: { limit: 100 } }),
+    ]);
+
+    const counts = Object.fromEntries(stats.by_status.map(r => [r.status, r.count]));
+    $("#trackStats").innerHTML = `
+      <div class="stat lead"><div class="k">Tracked</div><div class="v">${stats.total}</div></div>
+      <div class="stat"><div class="k">Response rate</div><div class="v">${stats.response_rate.toFixed(0)}%</div></div>
+      ${STAGES.map(s => `<div class="stat"><div class="k">${s}</div><div class="v">${counts[s] ?? 0}</div></div>`).join("")}`;
+
+    if (!apps.items.length){
+      board.innerHTML = `<div class="empty" style="grid-column:1/-1">
+        <div class="t">Nothing tracked yet</div>
+        <div class="d">Save a job from Matches and it lands in the Saved column. Move it along as you hear back.</div>
+        <button class="btn btn-primary" onclick="go('matches')">See your matches</button>
+      </div>`;
+      return;
+    }
+
+    board.innerHTML = STAGES.map(stage => {
+      const inStage = apps.items.filter(a => a.status === stage);
+      return `<div class="col is-${stage.toLowerCase()}">
+        <div class="col-head"><span class="n">${stage}</span><span class="c">${inStage.length}</span></div>
+        ${inStage.map(a => `
+          <div class="tile">
+            <div class="tile-t">${esc(a.job.title)}</div>
+            <div class="tile-c">${esc(a.job.company)} · ${esc(a.job.location)}</div>
+            ${a.match_score_at_apply != null
+              ? `<div class="tile-score">${a.match_score_at_apply.toFixed(0)}% when saved</div>` : ""}
+            <div class="tile-foot">
+              <select class="select" onchange="moveApp(${a.id}, this.value)" aria-label="Stage">
+                ${STAGES.map(s => `<option ${s === a.status ? "selected" : ""}>${s}</option>`).join("")}
+              </select>
+              <button class="btn btn-quiet" onclick="dropApp(${a.id})" title="Stop tracking">✕</button>
+            </div>
+          </div>`).join("") ||
+          `<div class="mono muted" style="font-size:11px;padding:6px 2px">—</div>`}
+      </div>`;
+    }).join("");
+
+  } catch (ex) {
+    board.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="t">Couldn't load the tracker</div><div class="d">${esc(ex.message)}</div></div>`;
+  }
+}
+
+async function moveApp(id, status){
+  try { await api("PUT", `/applications/${id}`, { body: { status } });
+    toast(`Moved to ${status}`, "ok"); loadTracker();
+  } catch (ex) { toast(ex.message, "err"); loadTracker(); }
+}
+async function dropApp(id){
+  try { await api("DELETE", `/applications/${id}`); toast("Removed"); loadTracker(); }
+  catch (ex) { toast(ex.message, "err"); }
+}
+
+/* ============================================================
+   PROFILE
+   ============================================================ */
+async function refreshProfile(){ profile = await api("GET", "/users/me"); paintProfile(); }
+
+async function paintProfile(){
+  if (!profile) return;
+  $("#skillCount").textContent = profile.all_skills.length
+    ? `${profile.all_skills.length} skills — resume first, then anything you added by hand.`
+    : "Nothing yet. Upload a resume or type some skills in below.";
+  $("#skillChips").innerHTML = profile.all_skills.map(s => `<span class="chip have">${esc(s)}</span>`).join("")
+    || `<span class="muted" style="font-size:13.5px">No skills on file</span>`;
+
+  $("#pfName").value = profile.full_name || "";
+  $("#pfLoc").value = profile.preferred_location || "";
+  $("#pfExp").value = profile.years_experience ?? 0;
+  $("#pfSkills").value = (profile.extra_skills || []).join(", ");
+
+  try {
+    const res = await api("GET", "/resumes", { params: { limit: 20 } });
+    $("#dropState").textContent = res.total
+      ? `${res.total} uploaded — newest first`
+      : "nothing uploaded yet";
+    $("#resumeList").innerHTML = res.items.map(r => `
+      <div class="filerow">
+        <span class="fn">${esc(r.filename)}</span>
+        <span class="fm">${r.skills.length} skills · ${(r.size_bytes/1024).toFixed(0)} KB</span>
+        ${r.is_active ? `<span class="badge-active">Active</span>`
+          : `<button class="btn btn-ghost" style="padding:4px 9px;font-size:12px" onclick="activateResume(${r.id})">Use this</button>`}
+        <button class="btn btn-quiet" onclick="deleteResume(${r.id})" title="Delete">✕</button>
+      </div>`).join("");
+  } catch {}
+}
+
+$("#prefSave").addEventListener("click", async () => {
+  const btn = $("#prefSave");
+  btn.disabled = true; btn.textContent = "Saving…";
+  try {
+    await api("PATCH", "/users/me", { body: {
+      full_name: $("#pfName").value.trim() || null,
+      preferred_location: $("#pfLoc").value.trim() || null,
+      years_experience: Number($("#pfExp").value || 0),
+      extra_skills: $("#pfSkills").value.split(",").map(s => s.trim()).filter(Boolean),
+    }});
+    toast("Preferences saved", "ok");
+    await refreshProfile();
+  } catch (ex) { toast(ex.message, "err"); }
+  finally { btn.disabled = false; btn.textContent = "Save changes"; }
+});
+
+/* ---------- resume upload: click, keyboard and drag-drop ---------- */
+const drop = $("#drop"), fileInput = $("#fileInput");
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " "){ e.preventDefault(); fileInput.click(); } });
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", () => { if (fileInput.files[0]) upload(fileInput.files[0]); });
+
+async function upload(file){
+  $("#dropState").textContent = `parsing ${file.name}…`;
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const data = await api("POST", "/resumes/upload", { form, params: { make_active: true } });
+    toast(data.message, data.skills_found ? "ok" : "");
+    await refreshProfile();
+  } catch (ex) {
+    $("#dropState").textContent = "upload failed";
+    toast(ex.message, "err");
+  }
+  fileInput.value = "";
+}
+
+async function activateResume(id){
+  try { await api("POST", `/resumes/${id}/activate`); toast("Now matching against this resume", "ok"); await refreshProfile(); }
+  catch (ex) { toast(ex.message, "err"); }
+}
+async function deleteResume(id){
+  try { await api("DELETE", `/resumes/${id}`); toast("Resume deleted"); await refreshProfile(); }
+  catch (ex) { toast(ex.message, "err"); }
+}
+
+/* ============================================================
+   BOOT
+   ============================================================ */
+async function boot(){
+  paintDemo();
+  try { await api("GET", "/health"); } catch { return; }
+  if (store.get()){
+    try { await enterApp(); return; } catch { store.clear(); }
+  }
+  $("#authScreen").hidden = false;
+}
+boot();
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+# Full local stack: PostgreSQL + FastAPI + Streamlit.
+#
+#   docker compose up --build
+#
+#   API   -> http://localhost:8000/docs
+#   UI    -> http://localhost:8501
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jobs_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: jobsdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # The API must not start before Postgres is actually accepting queries.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jobsdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jobs_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/jobsdb
+      SECRET_KEY: ${SECRET_KEY:-dev-only-secret-change-me}
+      DEBUG: "true"
+      DEFAULT_MATCH_STRATEGY: overlap
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume so uploaded resumes survive a container rebuild.
+      - resume_uploads:/app/uploads
+    command: >
+      sh -c "python -m scripts.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: jobs_ui
+    depends_on:
+      - api
+    environment:
+      # Container-to-container call, so it is the service name, not localhost.
+      API_BASE_URL: http://api:8000
+    ports:
+      - "8501:8501"
+
+volumes:
+  postgres_data:
+  resume_uploads:
