@@ -42,6 +42,7 @@ RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.t
 COPY --chown=appuser:appuser app ./app
 COPY --chown=appuser:appuser scripts ./scripts
 COPY --chown=appuser:appuser frontend ./frontend
+COPY --chown=appuser:appuser start.sh ./start.sh
 
 RUN mkdir -p /app/uploads && chown -R appuser:appuser /app/uploads
 
