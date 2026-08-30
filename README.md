@@ -1,3 +1,4 @@
+https://ai-job-platform-api-40og.onrender.com/app/
 # AI Job Recommendation & Resume Analyzer API
 
 A production-shaped FastAPI backend that parses resumes, extracts skills, and ranks jobs
